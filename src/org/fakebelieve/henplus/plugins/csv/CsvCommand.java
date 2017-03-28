@@ -5,7 +5,6 @@
 package org.fakebelieve.henplus.plugins.csv;
 
 import henplus.AbstractCommand;
-import henplus.CommandDispatcher;
 import henplus.HenPlus;
 import henplus.SQLSession;
 import henplus.commands.TimeRenderer;
@@ -14,18 +13,20 @@ import org.supercsv.io.ICsvListWriter;
 import org.supercsv.prefs.CsvPreference;
 
 import java.io.BufferedWriter;
-import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.*;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.StringTokenizer;
 
 public final class CsvCommand extends AbstractCommand {
 
-    private static final String COMMAND_SAVE_FILE = "csv";
+    private static final String COMMAND_CSV = "csv";
+    private static final String COMMAND_CSV_NO_HEADER = "csv-no-headers";
 
     /**
      *
@@ -39,7 +40,7 @@ public final class CsvCommand extends AbstractCommand {
      */
     @Override
     public String[] getCommandList() {
-        return new String[]{COMMAND_SAVE_FILE};
+        return new String[]{COMMAND_CSV, COMMAND_CSV_NO_HEADER};
     }
 
     /*
@@ -49,17 +50,6 @@ public final class CsvCommand extends AbstractCommand {
     @Override
     public boolean participateInCommandCompletion() {
         return true;
-    }
-
-    protected List<String> getCatalogs(SQLSession session) throws SQLException {
-        List<String> list = new ArrayList<String>();
-        ResultSet catalogs = session.getConnection().getMetaData().getCatalogs();
-        while (catalogs.next()) {
-            list.add(catalogs.getString(1));
-        }
-        catalogs.close();
-
-        return list;
     }
 
     /*
@@ -77,18 +67,28 @@ public final class CsvCommand extends AbstractCommand {
             return EXEC_FAILED;
         }
 
-        if (command.equals(COMMAND_SAVE_FILE) ) {
+        if (command.equals(COMMAND_CSV) || command.equals(COMMAND_CSV_NO_HEADER) ) {
             final StringTokenizer st = new StringTokenizer(parameters);
-            final int argc = st.countTokens();
 
-            if (argc < 2) {
+            boolean headers = !command.equals(COMMAND_CSV_NO_HEADER);
+
+            if (!st.hasMoreTokens()) {
                 return SYNTAX_ERROR;
             }
 
             String fileName = st.nextToken().trim();
+
+            if (!st.hasMoreTokens()) {
+                return SYNTAX_ERROR;
+            }
+
             String selectSql = st.nextToken("").trim();
 
-            session.println("Saving to fileName " + fileName);
+            session.print("Saving to \"" + fileName + "\"");
+            if (!headers) {
+                session.print(" without headers");
+            }
+            session.println(".");
 
             Statement statement = session.createStatement();
             ResultSet resultSet = null;
@@ -125,7 +125,9 @@ public final class CsvCommand extends AbstractCommand {
                     BufferedWriter out = new BufferedWriter(new FileWriter(fileName, false));
                     ICsvListWriter listWriter = new CsvListWriter(out, CsvPreference.STANDARD_PREFERENCE);
 
-                    listWriter.writeHeader(columnNames);
+                    if (headers) {
+                        listWriter.writeHeader(columnNames);
+                    }
 
                     int rows = 0;
 
@@ -210,7 +212,7 @@ public final class CsvCommand extends AbstractCommand {
      */
     @Override
     public String getShortDescription() {
-        return "save results to csv file";
+        return "Save results to CSV file";
     }
 
     /*
@@ -219,8 +221,8 @@ public final class CsvCommand extends AbstractCommand {
      */
     @Override
     public String getSynopsis(String cmd) {
-        if (cmd.equals(COMMAND_SAVE_FILE)) {
-            return cmd + " <csv-file> select ...";
+        if (cmd.equals(COMMAND_CSV) || cmd.equals(COMMAND_CSV_NO_HEADER)) {
+            return cmd + " <csv-file> SELECT ...";
         }
         return cmd;
     }
@@ -231,33 +233,13 @@ public final class CsvCommand extends AbstractCommand {
      */
     @Override
     public String getLongDescription(String cmd) {
-        if (cmd.equals(COMMAND_SAVE_FILE)) {
+        if (cmd.equals(COMMAND_CSV) || cmd.equals(COMMAND_CSV_NO_HEADER)) {
             return "\tSave the output of a SELECT as CSV.\n"
                     + "\n"
-                    + "\t\t" + COMMAND_SAVE_FILE + " <csv-file> select ...;\n"
+                    + "\t\t" + COMMAND_CSV + " <csv-file> SELECT ...;\n"
                     + "\n";
         }
         return null;
-    }
-
-    @Override
-    public Iterator complete(CommandDispatcher disp, String partialCommand, String lastWord) {
-        HenPlus.getInstance().getCurrentSession();
-
-        try {
-            List<String> catalogs = getCatalogs(HenPlus.getInstance().getCurrentSession());
-            for (Iterator<String> i = catalogs.listIterator(); i.hasNext(); ) {
-                String catalog = i.next();
-                if (!catalog.startsWith(lastWord)) {
-                    i.remove();
-                }
-            }
-            return catalogs.iterator();
-        } catch (SQLException ex) {
-            HenPlus.msg().println("Problem - " + ex.getMessage());
-            return super.complete(disp, partialCommand, lastWord);
-        }
-
     }
 
     /**
