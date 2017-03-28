@@ -26,7 +26,6 @@ import java.util.StringTokenizer;
 public final class CsvCommand extends AbstractCommand {
 
     private static final String COMMAND_CSV = "csv";
-    private static final String COMMAND_CSV_NO_HEADER = "csv-no-headers";
 
     /**
      *
@@ -40,7 +39,7 @@ public final class CsvCommand extends AbstractCommand {
      */
     @Override
     public String[] getCommandList() {
-        return new String[]{COMMAND_CSV, COMMAND_CSV_NO_HEADER};
+        return new String[]{COMMAND_CSV};
     }
 
     /*
@@ -57,6 +56,15 @@ public final class CsvCommand extends AbstractCommand {
      * @see henplus.Command#execute(henplus.SQLSession, java.lang.String, java.lang.String)
      */
 
+    private String paramValue(String param) {
+        int location = param.indexOf("=");
+        if (location <= 0) {
+            return null;
+        }
+
+        return param.substring(location + 1);
+    }
+
     @Override
     public int execute(SQLSession session, String command, String parameters) {
         int result = SUCCESS;
@@ -67,16 +75,39 @@ public final class CsvCommand extends AbstractCommand {
             return EXEC_FAILED;
         }
 
-        if (command.equals(COMMAND_CSV) || command.equals(COMMAND_CSV_NO_HEADER) ) {
+        if (command.equals(COMMAND_CSV)) {
             final StringTokenizer st = new StringTokenizer(parameters);
 
-            boolean headers = !command.equals(COMMAND_CSV_NO_HEADER);
 
-            if (!st.hasMoreTokens()) {
-                return SYNTAX_ERROR;
+            CsvPreferenceBuilder preferenceBuilder = new CsvPreferenceBuilder();
+
+            boolean headers = true;
+
+            String fileName;
+            for (; ; ) {
+                if (!st.hasMoreTokens()) {
+                    return SYNTAX_ERROR;
+                }
+
+                String token = st.nextToken();
+                if (token.startsWith("quote-char=")) {
+                    preferenceBuilder.withQuoteChar(paramValue(token).charAt(0));
+                } else if (token.startsWith("delim-char=")) {
+                    preferenceBuilder.withDelimiterChar(paramValue(token).charAt(0));
+                } else if (token.startsWith("quote-mode=")) {
+                    preferenceBuilder.withQuoteMode(paramValue(token));
+                } else if (token.startsWith("empty-lines=")) {
+                    preferenceBuilder.withEmptyLines(paramValue(token));
+                } else if (token.startsWith("surrounding-spaces=")) {
+                    preferenceBuilder.withSurroundingSpaces(paramValue(token));
+                } else if (token.startsWith("headers=")) {
+                    String value = paramValue(token);
+                    headers = value.equalsIgnoreCase("true") || value.equalsIgnoreCase("on") || value.equalsIgnoreCase("yes");
+                } else {
+                    fileName = token;
+                    break;
+                }
             }
-
-            String fileName = st.nextToken().trim();
 
             if (!st.hasMoreTokens()) {
                 return SYNTAX_ERROR;
@@ -123,7 +154,8 @@ public final class CsvCommand extends AbstractCommand {
                     long execTime = -1;
 
                     BufferedWriter out = new BufferedWriter(new FileWriter(fileName, false));
-                    ICsvListWriter listWriter = new CsvListWriter(out, CsvPreference.STANDARD_PREFERENCE);
+                    CsvPreference csvPreference = preferenceBuilder.build();
+                    ICsvListWriter listWriter = new CsvListWriter(out, csvPreference);
 
                     if (headers) {
                         listWriter.writeHeader(columnNames);
@@ -167,8 +199,7 @@ public final class CsvCommand extends AbstractCommand {
                     HenPlus.msg().println(e.getMessage());
                     return EXEC_FAILED;
                 }
-            }
-            finally {
+            } finally {
                 if (resultSet != null) {
                     try {
                         resultSet.close();
@@ -221,8 +252,8 @@ public final class CsvCommand extends AbstractCommand {
      */
     @Override
     public String getSynopsis(String cmd) {
-        if (cmd.equals(COMMAND_CSV) || cmd.equals(COMMAND_CSV_NO_HEADER)) {
-            return cmd + " <csv-file> SELECT ...";
+        if (cmd.equals(COMMAND_CSV)) {
+            return cmd + " [headers=on|off] [quote-char=X] [quote-mode=always|normal] [delim-char=X] [empty-lines=ignore|use] [surrounding-spaces=need-quotes|ignore] <csv-file> SELECT ...";
         }
         return cmd;
     }
@@ -233,11 +264,18 @@ public final class CsvCommand extends AbstractCommand {
      */
     @Override
     public String getLongDescription(String cmd) {
-        if (cmd.equals(COMMAND_CSV) || cmd.equals(COMMAND_CSV_NO_HEADER)) {
-            return "\tSave the output of a SELECT as CSV.\n"
-                    + "\n"
-                    + "\t\t" + COMMAND_CSV + " <csv-file> SELECT ...;\n"
-                    + "\n";
+        if (cmd.equals(COMMAND_CSV)) {
+            return "\tSave the output of a SELECT as CSV.\n" +
+                    "\n" +
+                    "\t\t" + COMMAND_CSV + " [options] <csv-file> SELECT ...;\n" +
+                    "\n" +
+                    "\toptions:\n" +
+                    "\t\theaders=on|off\t\t\t\t(default: on)\n" +
+                    "\t\tquote-char=X\t\t\t\t(default: \")\n" +
+                    "\t\tquote-mode=always|normal\t\t(default: normal)\n" +
+                    "\t\tdelim-char=X\t\t\t\t(default: ,)\n" +
+                    "\t\tempty-lines=ignore|use\t\t\t(default: ignore)\n" +
+                    "\t\tsurrounding-spaces=need-quotes|ignore\t(default: ignore)\n";
         }
         return null;
     }
