@@ -1,9 +1,9 @@
-##CSV Henplus Plug-In##
+## CSV Henplus Plug-In ##
 
 This plugin allows you to save the results of a SELECT statement to a file as CSV. 
 
 
-###Easy Setup###
+### Easy Setup ###
 
 Simply put `csv-henplus-plugin.jar` and `super-csv-2.3.1.jar` in to the CLASSPATH of `henplus`, generally in the `share/henplus` folder somewhere.
 
@@ -11,7 +11,7 @@ Start `henplus` and register the plugin. Use the `plug-in` command for this. Thi
 
      Hen*Plus> plug-in org.fakebelieve.henplus.plugins.csv.CsvCommand
 
-###Usage###
+### Usage ###
 
 The plugin responds to one command `csv`.
 
