@@ -11,7 +11,7 @@ public class CsvPreferenceBuilder {
 
     private char delimiterChar = ',';
     private char quoteChar = '"';
-    private String endOfLineSymbols = "\r\n";
+    private String endOfLineSymbols = "\n";
     private String quoteMode = "normal";
     private String surroundingSpaces = "need-quotes";
     private String emptyLines = "ignore";
